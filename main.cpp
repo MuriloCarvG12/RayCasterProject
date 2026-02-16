@@ -1,133 +1,87 @@
 
+
 #include <iostream>
-#include <ostream>
+
+#include "Vector3D.h"
+#include "Intersections.h"
 #include <cmath>
+#include <vector>
 
-struct Vector_3D
+struct Pixel
 {
-    double x, y, z;
-
-    Vector_3D(double x, double y, double z) {
-        this->x = x;
-        this->y = y;
-        this->z = z;
-    }
-
-    Vector_3D operator+(const Vector_3D& VectorB) const
-    {
-
-        return Vector_3D(
-
-            x + VectorB.x,
-
-            y + VectorB.y,
-
-            z + VectorB.z
-        );
-    }
-
-    Vector_3D operator-(const Vector_3D &VectorB) const
-    {
-
-        return Vector_3D(
-
-           x - VectorB.x,
-
-           y - VectorB.y,
-
-           z - VectorB.z
-       );
-
-    }
-
-    Vector_3D ScalarMultiplication(double Scalar) const
-    {
-
-        return Vector_3D(
-
-           x * Scalar,
-
-           y * Scalar,
-
-           z * Scalar
-       );
-
-    }
-
-    Vector_3D ScalarDivision(double Scalar) const
-    {
-
-        return Vector_3D
-        (
-
-            x / Scalar,
-
-            y / Scalar,
-
-            z / Scalar
-
-            );
-    }
-
-    double DotProduct(Vector_3D VectorA, Vector_3D VectorB) const
-    {
-
-        double Result;
-
-        Result = (VectorA.x *  VectorB.x) + (VectorA.y *  VectorB.y) + (VectorA.z *  VectorB.z);
-
-        return Result;
-
-    }
-
-    Vector_3D CrossProduct(const Vector_3D& VectorB) const
-    {
-        return Vector_3D
-        (
-            y * VectorB.z - z * VectorB.y,
-
-            z * VectorB.x - x * VectorB.z,
-
-            x * VectorB.y - y * VectorB.x
-        );
-    }
-
-    Vector_3D ParametricEquation(const Vector_3D& VectorB, double Scalar) const
-    {
-        return Vector_3D
-        (
-            x + Scalar * VectorB.x,
-
-            y + Scalar * VectorB.y,
-
-            z + Scalar * VectorB.z
-        );
-    }
-
-    double length() const
-    {
-        double SquareSum = x*x + y*y + z*z;
-        return std::sqrt(SquareSum);
-    }
-
-    Vector_3D normalized() const
-    {
-        double len = length();
-
-        return Vector_3D
-        (
-            x / len,
-            y / len,
-            z / len);
-    }
-
-
+    int Red;
+    int Green;
+    int Blue;
+    Pixel(__int8 R, __int8 G, __int8 B);
 };
 
-int main() {
-    Vector_3D A = {1,1,1};
-    Vector_3D B = {1,1,1};
-    Vector_3D C = A.ScalarMultiplication(9);
+int height = 400;
+int width = 600;
 
-    std::cout << C.x << " " << C.y << " " << C.z << std::endl;
-}
+//vector stuff - here we set up the vector directions up foward right which will be used to calculate other vectors in our main function
+//we also determine the camera position adopting the standard origin XYZ 000
+
+Vector_3D Up = Vector_3D(0, 0, 0);
+Vector_3D Foward = Vector_3D(0, 0, -1);
+Vector_3D Right = Vector_3D(1, 0, 0);
+Vector_3D CameraPosition = Vector_3D(0, 0, 0);
+
+
+//camera stuff here we define the aspect ratio, as well as the FOV
+//reminder that it will be the FOV that will be usd to define how large or thin or image plane will be
+//also convert it to radians
+
+double AspectRatio = width / double(height);
+int FOV = 60;
+
+int FovRad = (FOV * M_PI )/ 180;
+double CameraDistance = 1.0;
+
+//imageplane stuff setting up the width height and locating its center , its important to remember
+//that we are assuming the image plane is exactly in front of our camera thus the center is just the camera pos vec
+// + the foward * 1
+
+double ImagePlaneWidth = 2.0 * CameraDistance * std::tan(FovRad * 0.5);
+double ImagePlaneHeight = ImagePlaneWidth * AspectRatio;
+
+Vector_3D PlaneCenter = CameraPosition + Foward.ScalarMultiplication(CameraDistance);
+Vector_3D BottomLeft = PlaneCenter - Right.ScalarMultiplication((ImagePlaneWidth * 0.5)) - Up.ScalarMultiplication((ImagePlaneHeight * 0.5));
+
+//sphere object stuffs
+double SphereObjectRadius = 1;
+Vector_3D SphereCenter = Vector_3D(0, 0, -5);
+
+// initializing the image buffer setting all pixels to black
+std::vector<Pixel> ImageBuffer(height * width, Pixel(0, 0, 0));
+int main() {
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            double CurrentUp = (y + 0.5) / double(height);
+            double CurrentRight = (x + 0.5) / double(width);
+
+            Vector_3D CurrentImagePlanePositon = BottomLeft + Up.ScalarMultiplication((CurrentUp * ImagePlaneHeight)) +
+                                                              Right.ScalarMultiplication((CurrentRight * ImagePlaneWidth));
+
+            Vector_3D Direction = CameraPosition - CurrentImagePlanePositon;
+            Ray3D CameraRay = Ray3D(CameraPosition,Direction);
+
+            double IntersectionPoint = SphericalIntersection(CameraRay ,SphereCenter,SphereObjectRadius);
+
+            if (IntersectionPoint > 0)
+            {
+                //our ray sucefully collided against the object in this case a sphere
+                Vector_3D pixel = CameraPosition + (Direction.ScalarMultiplication(IntersectionPoint));
+                Vector_3D Normal = pixel - SphereCenter;
+                Pixel Color(Normal.x, Normal.y, Normal.z);
+                ImageBuffer[(width * y) + x] = Color;
+
+            }
+            else {
+                //return sky color
+                Pixel Color(0xAA, 0x00, 0xFF);
+                ImageBuffer[(width * y) + x] = Color;
+            }
+        }
+    }
+};

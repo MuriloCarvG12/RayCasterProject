@@ -9,12 +9,15 @@
 
 struct Ray3D
 {
+
     Vector_3D origin;
     Vector_3D direction;
-
+    Ray3D(const Vector_3D& o, const Vector_3D& d)
+    : origin(o), direction(d)
+    {}
 };
 
-Vector_3D SphericalIntersection(Ray3D Ray, Vector_3D Center, double radius)
+double SphericalIntersection(Ray3D Ray, Vector_3D Center, double radius)
 {
     Vector_3D OC = Ray.origin - Center;
     double distance = 0;
@@ -31,12 +34,12 @@ Vector_3D SphericalIntersection(Ray3D Ray, Vector_3D Center, double radius)
         { distance = RootOne; }
 
     if (std::abs(distance) < 1e-8)
-        return Vector_3D(0,0,0);
+        return -1;
 
     if ( distance < 0)
-        return Vector_3D(0,0,0);
+        return -1;
 
-    return Ray.origin + Ray.direction.ScalarMultiplication(distance);
+    return distance;
 
 }
 

@@ -8,4 +8,6 @@ add_executable(untitled main.cpp
         Intersections.h
         Vector3D.cpp
         Vector3D.h
+        camera.cpp
+        camera.h
 )
