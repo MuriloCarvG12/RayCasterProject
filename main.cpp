@@ -14,6 +14,10 @@
 
 static auto G_LastFrame = std::chrono::high_resolution_clock::now();
 
+auto G_Now = std::chrono::high_resolution_clock::now();
+double G_DeltaTime = 0;
+
+
 HWND g_window_handle = 0;
 MONITORINFO G_MonitorInfo;
 LONG G_MonitorWidth = 0;
@@ -47,10 +51,27 @@ struct Sphere {
 };
 
 std::vector<Sphere> Spheres = {
-    { Vector_3D(1, 0, -5),  1.0, Vector_3D(1, 1, 0) },  // yellow sphere
-    { Vector_3D(0, 2, -6),  2.0, Vector_3D(1, 0, 0) },  // red sphere
-    { Vector_3D(2, 0, -4),  0.5, Vector_3D(1, 0, 1) },  // purple sphere
-{ Vector_3D(4, 0, -4),  0.5, Vector_3D(1, 0.5, 0) },  // purple sphere
+    // a bunch of spheres here
+     // Foreground small detail spheres (Z -4 to -7)
+    { Vector_3D( 1,  -1,  -5),  0.3,  Vector_3D(1,   1,   1)   },  // white
+    { Vector_3D(-2,  -1,  -6),  0.3,  Vector_3D(0.5, 1,   0)   },  // lime
+    { Vector_3D( 0,   1,  -5),  0.25, Vector_3D(1,   0.8, 0)   },  // gold
+
+
+    // Midground feature spheres (Z -8 to -11)
+    { Vector_3D( 0,   0,  -8),  1.0,  Vector_3D(1,   1,   0)   },  // yellow
+    { Vector_3D(-3,   1,  -10), 2.0,  Vector_3D(1,   0,   0)   },  // red large
+    { Vector_3D( 2,   0,  -6),  0.5,  Vector_3D(1,   0,   1)   },  // purple
+    { Vector_3D( 4,   0,  -7),  0.5,  Vector_3D(1,   0.5, 0)   },  // orange
+    { Vector_3D(-1,   2,  -12), 1.5,  Vector_3D(0,   1,   1)   },  // cyan
+
+
+    // Deep background giants (Z -20 to -30)
+    { Vector_3D( 0,   0,  -25), 5.0,  Vector_3D(0.1, 0.1, 0.5) },  // dark blue giant
+    { Vector_3D(-15,  5,  -28), 6.0,  Vector_3D(0.5, 0.1, 0.1) },  // dark red giant
+    { Vector_3D( 12, -3,  -22), 4.0,  Vector_3D(0.1, 0.4, 0.2) },  // dark green giant
+    { Vector_3D(-8,  -8,  -20), 3.5,  Vector_3D(0.4, 0.2, 0.5) },  // dark purple giant
+    { Vector_3D( 10,  8,  -26), 4.5,  Vector_3D(0.5, 0.4, 0.1) },  // dark gol
 };
 
 int height = 400;
@@ -154,12 +175,42 @@ int render() {
     QueryPerformanceCounter(&frameEnd);
     StretchDIBits(DeviceContext, 0, 0, G_MonitorWidth, G_MonitorHeight, 0, 0, width, height, g_backbuffer.memory_canvas, &g_backbuffer.BitMapInfo, DIB_RGB_COLORS, SRCCOPY);
 
+    double FPS = 1.0 / G_DeltaTime;
+
     double elapsedTime = static_cast<double>(frameEnd.QuadPart - frameStart.QuadPart) / frequency.QuadPart;
     char c_DebugBuffer[64] = {0};
 
-    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Elapsed Time %0.02f", elapsedTime);
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Elapsed Time for frame %0.02f ms", elapsedTime);
     //this TextOut function prints stuff onto our program!
     TextOutA(DeviceContext, 0,0, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Avg FPS %0.1f", FPS);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 0,15, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "X position %0f", G_CameraPosition.x);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 0,30, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Y position %0f", G_CameraPosition.y);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 0,45, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Z position %0f", G_CameraPosition.z);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 0,60, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "X Looking at %0f", G_LookAt.x);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 150,30, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Y Looking at %0f", G_LookAt.y);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 150,45, c_DebugBuffer, (int) strlen(c_DebugBuffer));
+
+    sprintf_s(c_DebugBuffer, sizeof(c_DebugBuffer), "Z Looking at %0f", G_LookAt.z);
+    //this TextOut function prints stuff onto our program!
+    TextOutA(DeviceContext, 150,60, c_DebugBuffer, (int) strlen(c_DebugBuffer));
 
     return 0;
 };
@@ -170,12 +221,11 @@ void processInput(void) {
     G_Up      = G_Right.CrossProduct(G_Forward).normalized();
 
     // Delta time
-    static auto LastFrame = std::chrono::high_resolution_clock::now();
-    auto Now = std::chrono::high_resolution_clock::now();
-    double DeltaTime = std::chrono::duration<double>(Now - LastFrame).count();
-    LastFrame = Now;
+    G_Now = std::chrono::high_resolution_clock::now();
+    G_DeltaTime = std::chrono::duration<double>(G_Now - G_LastFrame).count();
+    G_LastFrame = G_Now;
 
-    double CameraSpeed = 1.0 * DeltaTime;
+    double CameraSpeed = 1.0 * G_DeltaTime;
 
     bool EscKeyIsDown     = KEY_DOWN(VK_ESCAPE);
     bool RiseKeyIsDown    = KEY_DOWN(VK_SPACE);
@@ -201,7 +251,7 @@ void processInput(void) {
     if (LowerKeyIsDown) G_CameraPosition = G_CameraPosition - G_Up.ScalarMultiplication(CameraSpeed);
     if (ResetKeyIsDown)  G_CameraPosition.y = 0, G_CameraPosition.x = 0, G_CameraPosition.z = 0, G_Yaw = -90, G_Pitch = 0;
 
-    double RotateSpeed = 60.0 * DeltaTime; // degrees per second
+    double RotateSpeed = 60.0 * G_DeltaTime; // degrees per second
 
     if (UpArrowIsDown)    G_Pitch += RotateSpeed;
     if (DownArrowIsDown)  G_Pitch -= RotateSpeed;
@@ -259,7 +309,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     RegisterClass(&wc);
 
-    // 2. Create the window
      g_window_handle = CreateWindowEx(
         0,                          // Optional window styles
         CLASS_NAME,                 // Window class name
@@ -306,7 +355,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     return (int)msg.wParam;
 }
 
-// 4. Window Procedure — handles messages sent to the window
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
